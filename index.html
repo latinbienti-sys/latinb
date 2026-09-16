@@ -1,0 +1,2706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock en Almacenes - Latinbien</title>
+<style>
+  :root { --azul:#0f3b6e; --verde:#1e8e5a; --naranja:#e07b2a; --gris:#eef1f5; --borde:#d3dae3; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; background: #f4f6f9; color: #1c2733; }
+  header { background: var(--azul); color: #fff; padding: 14px 22px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  .sub { font-size: 12px; opacity: .85; }
+  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .barra { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .barra select, .barra button { font-size: 14px; padding: 7px 10px; border: 1px solid var(--borde); border-radius: 6px; }
+  button { cursor: pointer; }
+  .tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 16px; margin-bottom: 18px; }
+  .tarjeta h2 { margin: 0 0 12px; font-size: 15px; color: var(--azul); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--gris); padding: 8px 10px; text-align: left; }
+  th { background: #f8fafc; color: #56657a; font-weight: 600; }
+  .num { text-align: center; font-variant-numeric: tabular-nums; }
+  .b { border-radius:6px; padding: 2px 9px; font-size: 13px; line-height: 1.4; border: 1px solid var(--borde); background:#fff; }
+  .pill { display:inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .pill.ok { background:#e2f6ea; color:#186a3a; }
+  .pill.med { background:#fff3d6; color:#92600a; }
+  .pill.old { background:#fde0e0; color:#8a1d1d; }
+  .mini-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .mini { background:#f8fafc; border:1px solid var(--borde); border-radius:8px; padding:10px; text-align:center; }
+  .mini b { display:block; font-size:17px; color:var(--azul); }
+  .mini span { font-size:11px; color:#56657a; }
+  .mini.loc { cursor:pointer; }
+  .mini.loc:hover { border-color:var(--azul); background:#eef4ff; }
+  .bar-fondo { background: var(--gris); border-radius: 8px; height: 16px; min-width: 100px; position: relative; }
+  .bar-fondo > i { display:block; height: 16px; border-radius: 8px; background: var(--naranja); }
+  .aviso { color:#8a1d1d; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stock en Almacenes &#8226; Latinbien</h1>
+  <span class="sub">Dato de origen: Odoo <i>stock.quant</i> (campo <b>in_date</b> = fecha de recepci&oacute;n)</span>
+</header>
+
+<main>
+  <section class="tarjeta">
+    <h2>Stock disponible (antig&uuml;edad en almac&eacute;n)</h2>
+    <p class="sub" id="stock-sync"></p>
+    <div id="stock-tarjetas"></div>
+    <div class="barra">
+      <label>Almac&eacute;n:
+        <select id="sel-almacen"></select>
+      </label>
+      <label>Antig&uuml;edad:
+        <select id="sel-antiguedad"></select>
+      </label>
+      <button id="btn-stock-orden" class="b">Ordenar: m&aacute;s tiempo primero</button>
+      <span class="sub" id="stock-resumen"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Producto</th><th class="num">C&oacute;digo</th><th class="num">Lote/Serie</th>
+          <th>Almac&eacute;n</th><th class="num">F. Recepci&oacute;n</th>
+          <th class="num">D&iacute;as en almac&eacute;n</th><th class="num">Disponible</th>
+        </tr></thead>
+        <tbody id="tbody-stock"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+const EMBEBIDO = {
+ "locations": [
+  {
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "total_units": 64.0,
+   "total_items": 59,
+   "max_age": 593,
+   "buckets": {
+    "Hasta 30 días": 22.0,
+    "31-60 días": 0,
+    "61-90 días": 1.0,
+    "91-180 días": 10.0,
+    "Más de 180 días": 31.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 8,
+   "location_name": "ALMACÉN (1) SEDE PRINCIPAL/Stock",
+   "total_units": 2.0,
+   "total_items": 2,
+   "max_age": 800,
+   "buckets": {
+    "Hasta 30 días": 0,
+    "31-60 días": 0,
+    "61-90 días": 0,
+    "91-180 días": 0,
+    "Más de 180 días": 2.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "total_units": 732.0,
+   "total_items": 42,
+   "max_age": 678,
+   "buckets": {
+    "Hasta 30 días": 0,
+    "31-60 días": 2.0,
+    "61-90 días": 0,
+    "91-180 días": 12.0,
+    "Más de 180 días": 718.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 123,
+   "location_name": "ALMACÉN (2) SEDE PRINCIPAL/Stock",
+   "total_units": 2.0,
+   "total_items": 2,
+   "max_age": 800,
+   "buckets": {
+    "Hasta 30 días": 0,
+    "31-60 días": 0,
+    "61-90 días": 0,
+    "91-180 días": 0,
+    "Más de 180 días": 2.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "total_units": 34.0,
+   "total_items": 31,
+   "max_age": 292,
+   "buckets": {
+    "Hasta 30 días": 1.0,
+    "31-60 días": 3.0,
+    "61-90 días": 1.0,
+    "91-180 días": 8.0,
+    "Más de 180 días": 21.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "total_units": 61.0,
+   "total_items": 57,
+   "max_age": 595,
+   "buckets": {
+    "Hasta 30 días": 17.0,
+    "31-60 días": 5.0,
+    "61-90 días": 1.0,
+    "91-180 días": 27.0,
+    "Más de 180 días": 11.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 135,
+   "location_name": "ALMGR/Stock",
+   "total_units": 1.0,
+   "total_items": 1,
+   "max_age": 14,
+   "buckets": {
+    "Hasta 30 días": 1.0,
+    "31-60 días": 0,
+    "61-90 días": 0,
+    "91-180 días": 0,
+    "Más de 180 días": 0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 261,
+   "location_name": "AVLB/Stock",
+   "total_units": 3.0,
+   "total_items": 3,
+   "max_age": 677,
+   "buckets": {
+    "Hasta 30 días": 0,
+    "31-60 días": 0,
+    "61-90 días": 0,
+    "91-180 días": 1.0,
+    "Más de 180 días": 2.0,
+    "Sin fecha": 0
+   }
+  },
+  {
+   "location_id": 269,
+   "location_name": "CMOT/Stock",
+   "total_units": 1.0,
+   "total_items": 1,
+   "max_age": 1,
+   "buckets": {
+    "Hasta 30 días": 1.0,
+    "31-60 días": 0,
+    "61-90 días": 0,
+    "91-180 días": 0,
+    "Más de 180 días": 0,
+    "Sin fecha": 0
+   }
+  }
+ ],
+ "bucket_labels": [
+  "Hasta 30 días",
+  "31-60 días",
+  "61-90 días",
+  "91-180 días",
+  "Más de 180 días",
+  "Sin fecha"
+ ],
+ "rows": [
+  {
+   "product_id": 2042,
+   "product_name": "[NET-MTK-RB3011-RM-BLK] RB3011UiAS-RM Router Mikrotik",
+   "default_code": "NET-MTK-RB3011-RM-BLK",
+   "location_id": 123,
+   "location_name": "ALMACÉN (2) SEDE PRINCIPAL/Stock",
+   "lot_name": "HE308JV42NE/303/r2",
+   "in_date": "2024-07-08 14:30:34",
+   "age_days": 800,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2042,
+   "product_name": "[NET-MTK-RB3011-RM-BLK] RB3011UiAS-RM Router Mikrotik",
+   "default_code": "NET-MTK-RB3011-RM-BLK",
+   "location_id": 123,
+   "location_name": "ALMACÉN (2) SEDE PRINCIPAL/Stock",
+   "lot_name": "HE30BQAAKP6/303/r2",
+   "in_date": "2024-07-08 14:30:34",
+   "age_days": 800,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2144,
+   "product_name": "Argom Tech Wall Mount 37\" to 80\" (arg-br-1587), Full Motion Double Arm.",
+   "default_code": null,
+   "location_id": 8,
+   "location_name": "ALMACÉN (1) SEDE PRINCIPAL/Stock",
+   "lot_name": "LMBR158723030674",
+   "in_date": "2024-07-08 15:04:26",
+   "age_days": 800,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2285,
+   "product_name": "[0001-8] Case For Phone",
+   "default_code": "0001-8",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2024-11-07 16:16:29",
+   "age_days": 678,
+   "bucket": "Más de 180 días",
+   "available": 3.0
+  },
+  {
+   "product_id": 2290,
+   "product_name": "[0001-33] Inversor UPS FT-B 300W 12V-110V",
+   "default_code": "0001-33",
+   "location_id": 261,
+   "location_name": "AVLB/Stock",
+   "lot_name": "20091710177",
+   "in_date": "2024-11-08 19:46:52",
+   "age_days": 677,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2338,
+   "product_name": "[0001-49] Protector de pantalla",
+   "default_code": "0001-49",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2024-11-27 13:37:34",
+   "age_days": 658,
+   "bucket": "Más de 180 días",
+   "available": 3.0
+  },
+  {
+   "product_id": 2339,
+   "product_name": "Adaptador de corriente negro",
+   "default_code": null,
+   "location_id": 8,
+   "location_name": "ALMACÉN (1) SEDE PRINCIPAL/Stock",
+   "lot_name": "",
+   "in_date": "2024-11-27 13:37:34",
+   "age_days": 658,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2084,
+   "product_name": "[0001-7] Base para Televisor Aiwa Soporte Fijo Pared 32/70 pulgadas",
+   "default_code": "0001-7",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2024-12-31 17:36:56",
+   "age_days": 624,
+   "bucket": "Más de 180 días",
+   "available": 17.0
+  },
+  {
+   "product_id": 1977,
+   "product_name": "Honor X8b (LLY-LX3) 8GB/512GB",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "A2YE6R4815001743",
+   "in_date": "2025-01-29 20:55:35",
+   "age_days": 595,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2447,
+   "product_name": "[0001-66] USB-C CABLE 4tf/1.2m Powerline",
+   "default_code": "0001-66",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "6971469292005",
+   "in_date": "2025-01-31 19:11:59",
+   "age_days": 593,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2473,
+   "product_name": "[JBLT110BLKAM] JBL Tune 110",
+   "default_code": "JBLT110BLKAM",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "KT0111'FM1753423",
+   "in_date": "2025-02-20 20:46:58",
+   "age_days": 573,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2367,
+   "product_name": "[0001-10] Condensador AireAcondicionado",
+   "default_code": "0001-10",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "1212020PNVW14248H000095",
+   "in_date": "2025-03-19 21:47:50",
+   "age_days": 546,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2060,
+   "product_name": "[TV016-00002] Aiwa 32\" HD Smart TV, Google TV.",
+   "default_code": "TV016-00002",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "32MGB4H8Z2B41M400198",
+   "in_date": "2025-05-26 16:40:31",
+   "age_days": 478,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2670,
+   "product_name": "[0001-67] XIAOMI QBH4269GL-SZ Cornetas XIAOMI de Bolsillo S28D 5W",
+   "default_code": "0001-67",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "55688-600H00265602",
+   "in_date": "2025-07-22 22:51:19",
+   "age_days": 421,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2670,
+   "product_name": "[0001-67] XIAOMI QBH4269GL-SZ Cornetas XIAOMI de Bolsillo S28D 5W",
+   "default_code": "0001-67",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "55688-600H00264842",
+   "in_date": "2025-07-22 22:51:19",
+   "age_days": 421,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2670,
+   "product_name": "[0001-67] XIAOMI QBH4269GL-SZ Cornetas XIAOMI de Bolsillo S28D 5W",
+   "default_code": "0001-67",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "55688-600H00264605",
+   "in_date": "2025-07-22 22:51:19",
+   "age_days": 421,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2670,
+   "product_name": "[0001-67] XIAOMI QBH4269GL-SZ Cornetas XIAOMI de Bolsillo S28D 5W",
+   "default_code": "0001-67",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "55688-600H00265589",
+   "in_date": "2025-07-22 22:51:19",
+   "age_days": 421,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2670,
+   "product_name": "[0001-67] XIAOMI QBH4269GL-SZ Cornetas XIAOMI de Bolsillo S28D 5W",
+   "default_code": "0001-67",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "55688-600H00265219",
+   "in_date": "2025-07-22 22:51:19",
+   "age_days": 421,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2721,
+   "product_name": "[AUD008-00011] Huawei Freebuds SE 3 T0016",
+   "default_code": "AUD008-00011",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "4BCBB24C26107424",
+   "in_date": "2025-08-08 20:26:38",
+   "age_days": 404,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2721,
+   "product_name": "[AUD008-00011] Huawei Freebuds SE 3 T0016",
+   "default_code": "AUD008-00011",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "4BCBB24C26107391",
+   "in_date": "2025-08-08 20:26:38",
+   "age_days": 404,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2727,
+   "product_name": "[0001-56] Seguro de Reserva de Dominio",
+   "default_code": "0001-56",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-08-15 00:50:02",
+   "age_days": 397,
+   "bucket": "Más de 180 días",
+   "available": 669.0
+  },
+  {
+   "product_id": 2734,
+   "product_name": "[0001-51] Router Wifi-6 Archer AX90 AX6600 Gigabit",
+   "default_code": "0001-51",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "22351L0000295",
+   "in_date": "2025-08-15 17:50:42",
+   "age_days": 397,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2772,
+   "product_name": "[0001-64] Tecno Spark 40 Pro+ (KM7) 8GB/256GB",
+   "default_code": "0001-64",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "350486501972910",
+   "in_date": "2025-08-22 21:02:15",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2772,
+   "product_name": "[0001-64] Tecno Spark 40 Pro+ (KM7) 8GB/256GB",
+   "default_code": "0001-64",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "350486501824129",
+   "in_date": "2025-08-22 21:02:15",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2775,
+   "product_name": "A76XUT5625003409",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "A76XUT5625003409",
+   "in_date": "2025-08-22 21:07:59",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2772,
+   "product_name": "[0001-64] Tecno Spark 40 Pro+ (KM7) 8GB/256GB",
+   "default_code": "0001-64",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "350314671814656",
+   "in_date": "2025-08-22 21:07:59",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2742,
+   "product_name": "[K9800G+M588GX] Combo Teclado Mouse Usb Gaming Inalambrico Delux K9800 M588",
+   "default_code": "K9800G+M588GX",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KM980022A000922",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2742,
+   "product_name": "[K9800G+M588GX] Combo Teclado Mouse Usb Gaming Inalambrico Delux K9800 M588",
+   "default_code": "K9800G+M588GX",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KM980022A000924",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2742,
+   "product_name": "[K9800G+M588GX] Combo Teclado Mouse Usb Gaming Inalambrico Delux K9800 M588",
+   "default_code": "K9800G+M588GX",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KM980022A000939",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2742,
+   "product_name": "[K9800G+M588GX] Combo Teclado Mouse Usb Gaming Inalambrico Delux K9800 M588",
+   "default_code": "K9800G+M588GX",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KM980022A0009391",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2742,
+   "product_name": "[K9800G+M588GX] Combo Teclado Mouse Usb Gaming Inalambrico Delux K9800 M588",
+   "default_code": "K9800G+M588GX",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KM980022A000938",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2742,
+   "product_name": "[K9800G+M588GX] Combo Teclado Mouse Usb Gaming Inalambrico Delux K9800 M588",
+   "default_code": "K9800G+M588GX",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KM980022A000934",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2745,
+   "product_name": "[AC12G] Router Mercusys AC1300 Dual Band Gigabit",
+   "default_code": "AC12G",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "2248452004640",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2747,
+   "product_name": "[ROU000-00168] Router Tp-Link AX12 AX1500 Gigabit Wi-Fi 6",
+   "default_code": "ROU000-00168",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "2253466002549",
+   "in_date": "2025-08-22 22:42:51",
+   "age_days": 390,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2753,
+   "product_name": "[08086279176479] Olla Arrocera 4-C Rice Cooker Cuisinart",
+   "default_code": "08086279176479",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "V507426",
+   "in_date": "2025-08-25 16:31:41",
+   "age_days": 387,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2749,
+   "product_name": "[074108477705] Terminadora de Barba, Bigote, Cuello y Orejas BaBylissPRO FXONE BLACKFX",
+   "default_code": "074108477705",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "V504777",
+   "in_date": "2025-08-25 17:52:52",
+   "age_days": 387,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2782,
+   "product_name": "A76XUT5625003409",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-08-27 14:30:54",
+   "age_days": 385,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2783,
+   "product_name": "A76XUT5625003409",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-08-27 14:48:19",
+   "age_days": 385,
+   "bucket": "Más de 180 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 2838,
+   "product_name": "Teclado Gaming Razer Ornata V3 TKL  Low Profile Keys - Mecha Membrane Switches - UV Coated Keycaps - Backlit Media Keys - 8 Zone RGB Lighting - Spill Resistant - Magnetic Wrist Wrest Snap Tap",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "512509F92300153",
+   "in_date": "2025-09-18 21:30:51",
+   "age_days": 363,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2834,
+   "product_name": "Audifonos Razer BlackShark V2 X PlayStation GamingHeadset: 50mm Drivers - Cardioid Mic - Lightweight - Comfortable, Noise Isolati ng Earcups - for PS5, Xbox Series X, PC, Switch via 3.5 mm Audio Jack",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "862516D32302610",
+   "in_date": "2025-09-18 21:30:51",
+   "age_days": 363,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2833,
+   "product_name": "Mouse Gamer Esports Razer Viper V3 HyperSpeed Inalámbrico",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "632516H31107439",
+   "in_date": "2025-09-18 21:30:51",
+   "age_days": 363,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2836,
+   "product_name": "Mouse Gamer Razer Basilisk V3 35K con Cable",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "632452H33102607",
+   "in_date": "2025-09-18 21:30:51",
+   "age_days": 363,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2838,
+   "product_name": "Teclado Gaming Razer Ornata V3 TKL  Low Profile Keys - Mecha Membrane Switches - UV Coated Keycaps - Backlit Media Keys - 8 Zone RGB Lighting - Spill Resistant - Magnetic Wrist Wrest Snap Tap",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "512509F92300151",
+   "in_date": "2025-09-18 21:30:51",
+   "age_days": 363,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2772,
+   "product_name": "[0001-64] Tecno Spark 40 Pro+ (KM7) 8GB/256GB",
+   "default_code": "0001-64",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "350314671635986",
+   "in_date": "2025-10-11 23:35:09",
+   "age_days": 340,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3024,
+   "product_name": "Botella EPSON T664 Amarillo L110-L210-L355-L555",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-10-21 21:45:30",
+   "age_days": 330,
+   "bucket": "Más de 180 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 3023,
+   "product_name": "Botella EPSON T664 Rojo L110-L210-L355-L555",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-10-21 21:45:30",
+   "age_days": 330,
+   "bucket": "Más de 180 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 3022,
+   "product_name": "Botella EPSON T664 Azul L200-L110-L210-L355-L555",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-10-21 21:45:30",
+   "age_days": 330,
+   "bucket": "Más de 180 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 3021,
+   "product_name": "Botella EPSON T664 Negro 200-L110-L210-L355-L555",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-10-21 21:45:30",
+   "age_days": 330,
+   "bucket": "Más de 180 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 3056,
+   "product_name": "[CEL007-00115] Honor X7D 8GB/256GB",
+   "default_code": "CEL007-00115",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "861960080866349",
+   "in_date": "2025-10-27 22:37:36",
+   "age_days": 324,
+   "bucket": "Más de 180 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 2729,
+   "product_name": "[0001-17] HONOR CHOICE Earbunds X7 Lite MZT-ME00",
+   "default_code": "0001-17",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "5504ABRT253U2513",
+   "in_date": "2025-10-27 22:37:36",
+   "age_days": 324,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2609,
+   "product_name": "[CEL01B-00191] Infinix Note 50 Pro 8GB/256GB",
+   "default_code": "CEL01B-00191",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "354173611409993",
+   "in_date": "2025-11-20 18:57:47",
+   "age_days": 300,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2594,
+   "product_name": "[0001-18] Honor Magic 7 Lite 5G 8GB/256GB",
+   "default_code": "0001-18",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "864500075852750",
+   "in_date": "2025-11-27 22:39:29",
+   "age_days": 293,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3155,
+   "product_name": "Tostador KitchenAid Clasico 2 Rebanadas",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "WXE0300680",
+   "in_date": "2025-11-28 17:42:41",
+   "age_days": 292,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3158,
+   "product_name": "[CEL005-00995] iPhone 17 Air 256GB (eSIM)",
+   "default_code": "CEL005-00995",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "H54K22LY7K",
+   "in_date": "2025-11-28 23:58:02",
+   "age_days": 292,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2747,
+   "product_name": "[ROU000-00168] Router Tp-Link AX12 AX1500 Gigabit Wi-Fi 6",
+   "default_code": "ROU000-00168",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "2253466002461",
+   "in_date": "2025-12-04 18:27:29",
+   "age_days": 286,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2747,
+   "product_name": "[ROU000-00168] Router Tp-Link AX12 AX1500 Gigabit Wi-Fi 6",
+   "default_code": "ROU000-00168",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "2253466002525",
+   "in_date": "2025-12-04 18:27:29",
+   "age_days": 286,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2747,
+   "product_name": "[ROU000-00168] Router Tp-Link AX12 AX1500 Gigabit Wi-Fi 6",
+   "default_code": "ROU000-00168",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "2253466002557",
+   "in_date": "2025-12-04 18:27:29",
+   "age_days": 286,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3056,
+   "product_name": "[CEL007-00115] Honor X7D 8GB/256GB",
+   "default_code": "CEL007-00115",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2025-12-05 23:51:14",
+   "age_days": 285,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2712,
+   "product_name": "[0001-12] Control PlayStation 5 / Sony DualSense PS5",
+   "default_code": "0001-12",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "711719574293",
+   "in_date": "2025-12-22 15:25:36",
+   "age_days": 268,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2711,
+   "product_name": "[0001-4] Audífonos Redragon Pelops H818",
+   "default_code": "0001-4",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "RDH81823011001640",
+   "in_date": "2025-12-22 15:25:36",
+   "age_days": 268,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2737,
+   "product_name": "[0001-59] Teclado Redragon HarpePro Gamer",
+   "default_code": "0001-59",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "RDK503A-RGB210902703306",
+   "in_date": "2025-12-22 16:09:36",
+   "age_days": 268,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 743,
+   "product_name": "[CON001-00042] Nintendo Switch Oled Neon Red & Neon Blue",
+   "default_code": "CON001-00042",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "XVL10155201603",
+   "in_date": "2025-12-22 21:40:44",
+   "age_days": 268,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2578,
+   "product_name": "[CAF004-00002] Aiwa Easy Life AWHCMD1501, Cafetera de 12 tazas con filtro permanente programable.",
+   "default_code": "CAF004-00002",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "15CM10H5000000000697",
+   "in_date": "2025-12-27 15:44:49",
+   "age_days": 263,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2657,
+   "product_name": "[S.W002-00362] Apple Watch SE – 40mm / GPS / 2nd Generación",
+   "default_code": "S.W002-00362",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "HVK0FR9202",
+   "in_date": "2025-12-27 16:14:44",
+   "age_days": 263,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2702,
+   "product_name": "[BTT003-00017] Batidora Cuisinart HM-70 – 7-Speed Hand Mixer",
+   "default_code": "BTT003-00017",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "V10298",
+   "in_date": "2025-12-27 16:38:10",
+   "age_days": 263,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2787,
+   "product_name": "[CAB002-00013] Cable de Carga Apple MU2G3ZM/A – 240W / USB-C / 2m",
+   "default_code": "CAB002-00013",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "195949093418-05",
+   "in_date": "2026-01-13 22:48:02",
+   "age_days": 246,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2787,
+   "product_name": "[CAB002-00013] Cable de Carga Apple MU2G3ZM/A – 240W / USB-C / 2m",
+   "default_code": "CAB002-00013",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "195949093418-04",
+   "in_date": "2026-01-13 22:48:02",
+   "age_days": 246,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2007,
+   "product_name": "[ACE00A-00001] Apple Pencil 2th generation (MU8F2AM/A)",
+   "default_code": "ACE00A-00001",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "H96LM952JKM9",
+   "in_date": "2026-01-24 16:21:04",
+   "age_days": 235,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2413,
+   "product_name": "[0001-55] Samsung Galaxy M55 5G 8GB/256GB",
+   "default_code": "0001-55",
+   "location_id": 261,
+   "location_name": "AVLB/Stock",
+   "lot_name": "R8YXB0SR5GR",
+   "in_date": "2026-02-01 19:43:41",
+   "age_days": 227,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-8",
+   "in_date": "2026-02-24 13:52:17",
+   "age_days": 204,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-6",
+   "in_date": "2026-02-24 13:52:17",
+   "age_days": 204,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-7",
+   "in_date": "2026-02-24 13:52:17",
+   "age_days": 204,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2060,
+   "product_name": "[TV016-00002] Aiwa 32\" HD Smart TV, Google TV.",
+   "default_code": "TV016-00002",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "32MGB4I8ZSP41M403698",
+   "in_date": "2026-02-25 20:29:48",
+   "age_days": 203,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-15",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-13",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-14",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-16",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-9",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-10",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-11",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-12",
+   "in_date": "2026-02-26 15:07:43",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-17",
+   "in_date": "2026-02-26 15:09:48",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-18",
+   "in_date": "2026-02-26 15:09:48",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3020,
+   "product_name": "[AIARG-01] Alimentador Inteligente ARGOMTECH para Mascotas-Capacidad de 4 L",
+   "default_code": "AIARG-01",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "886540009402",
+   "in_date": "2026-02-26 21:19:37",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3020,
+   "product_name": "[AIARG-01] Alimentador Inteligente ARGOMTECH para Mascotas-Capacidad de 4 L",
+   "default_code": "AIARG-01",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "886540009402-2",
+   "in_date": "2026-02-26 21:19:37",
+   "age_days": 202,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3237,
+   "product_name": "[HWF4] Huawei Watch Fit 4",
+   "default_code": "HWF4",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "4RZYD26105400424",
+   "in_date": "2026-03-05 16:43:52",
+   "age_days": 195,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3237,
+   "product_name": "[HWF4] Huawei Watch Fit 4",
+   "default_code": "HWF4",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "4RZYD26105400500",
+   "in_date": "2026-03-05 19:48:06",
+   "age_days": 195,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3188,
+   "product_name": "[AUD01R-00004] Audifonos Lamborghini Lambo Headset Huracan LB-HS",
+   "default_code": "AUD01R-00004",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "24HZH09500184",
+   "in_date": "2026-03-05 19:48:06",
+   "age_days": 195,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3238,
+   "product_name": "[ASXM4432G] ASTRA FUNDA  PARA LAPTOP BRUMA 14\"",
+   "default_code": "ASXM4432G",
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2026-03-05 20:35:24",
+   "age_days": 195,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3242,
+   "product_name": "Klipxtreme Funda Para Laptop 15.6\"",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2026-03-05 20:35:24",
+   "age_days": 195,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3241,
+   "product_name": "DELL Morral  Ecoloop ESsential 14-16",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "884116462903",
+   "in_date": "2026-03-05 20:35:24",
+   "age_days": 195,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-19",
+   "in_date": "2026-03-11 19:29:04",
+   "age_days": 189,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3220,
+   "product_name": "[MC-01] Molino De Café De Acero Hamilton",
+   "default_code": "MC-01",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "80406-20",
+   "in_date": "2026-03-11 19:29:04",
+   "age_days": 189,
+   "bucket": "Más de 180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2084,
+   "product_name": "[0001-7] Base para Televisor Aiwa Soporte Fijo Pared 32/70 pulgadas",
+   "default_code": "0001-7",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "",
+   "in_date": "2026-04-13 19:14:28",
+   "age_days": 156,
+   "bucket": "91-180 días",
+   "available": 5.0
+  },
+  {
+   "product_id": 3286,
+   "product_name": "[PP-01] PRECINTO DE PLASTICO (IMPRESORA /CAJA REG)",
+   "default_code": "PP-01",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "084625",
+   "in_date": "2026-04-13 19:39:53",
+   "age_days": 156,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3286,
+   "product_name": "[PP-01] PRECINTO DE PLASTICO (IMPRESORA /CAJA REG)",
+   "default_code": "PP-01",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "084624",
+   "in_date": "2026-04-13 19:39:53",
+   "age_days": 156,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2132,
+   "product_name": "[TV016-00020] Aiwa 75\", QLED Smart, Google TV",
+   "default_code": "TV016-00020",
+   "location_id": 261,
+   "location_name": "AVLB/Stock",
+   "lot_name": "75FGB4H4ZB2ABY900109",
+   "in_date": "2026-04-14 14:16:28",
+   "age_days": 155,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3267,
+   "product_name": "Estetoscopio Littmann Classic III",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "707387789619-10",
+   "in_date": "2026-04-24 16:24:55",
+   "age_days": 145,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3267,
+   "product_name": "Estetoscopio Littmann Classic III",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "707387789619-09",
+   "in_date": "2026-04-24 16:24:55",
+   "age_days": 145,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3267,
+   "product_name": "Estetoscopio Littmann Classic III",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "707387789619-08",
+   "in_date": "2026-04-24 16:24:55",
+   "age_days": 145,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3267,
+   "product_name": "Estetoscopio Littmann Classic III",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "707387789619-12",
+   "in_date": "2026-04-24 16:24:55",
+   "age_days": 145,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3267,
+   "product_name": "Estetoscopio Littmann Classic III",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "707387789619-11",
+   "in_date": "2026-04-24 16:24:55",
+   "age_days": 145,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2132,
+   "product_name": "[TV016-00020] Aiwa 75\", QLED Smart, Google TV",
+   "default_code": "TV016-00020",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "75FGB4H4ZB2A8Y900115",
+   "in_date": "2026-04-24 20:53:32",
+   "age_days": 145,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3307,
+   "product_name": "[AMCB13] Laptop Apple MacBook Neo 13” – A18 Pro / 8GB / 256GB",
+   "default_code": "AMCB13",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "SFQK3R094X3",
+   "in_date": "2026-04-28 22:33:30",
+   "age_days": 141,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3326,
+   "product_name": "[AUD009-00052] Audifonos inalámbricos Xiaomi Redmi Buds 6",
+   "default_code": "AUD009-00052",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "59306/CRAG515PN04447",
+   "in_date": "2026-05-06 15:14:49",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3326,
+   "product_name": "[AUD009-00052] Audifonos inalámbricos Xiaomi Redmi Buds 6",
+   "default_code": "AUD009-00052",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "59306/CRAG515PM01362",
+   "in_date": "2026-05-06 15:14:49",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3326,
+   "product_name": "[AUD009-00052] Audifonos inalámbricos Xiaomi Redmi Buds 6",
+   "default_code": "AUD009-00052",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "59307/CRAG515XN04195",
+   "in_date": "2026-05-06 15:14:49",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3326,
+   "product_name": "[AUD009-00052] Audifonos inalámbricos Xiaomi Redmi Buds 6",
+   "default_code": "AUD009-00052",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "59301/CRAG515PP01270",
+   "in_date": "2026-05-06 15:14:49",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3326,
+   "product_name": "[AUD009-00052] Audifonos inalámbricos Xiaomi Redmi Buds 6",
+   "default_code": "AUD009-00052",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "59301/CRAG515PP01700",
+   "in_date": "2026-05-06 15:14:49",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3326,
+   "product_name": "[AUD009-00052] Audifonos inalámbricos Xiaomi Redmi Buds 6",
+   "default_code": "AUD009-00052",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "59306/CRAG515PM02489",
+   "in_date": "2026-05-06 15:14:49",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3325,
+   "product_name": "[XBAND6] Xiaomi Smart Band 9 (M2345B1)",
+   "default_code": "XBAND6",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "55461/DYAMJQ4XB06808",
+   "in_date": "2026-05-06 15:42:26",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3325,
+   "product_name": "[XBAND6] Xiaomi Smart Band 9 (M2345B1)",
+   "default_code": "XBAND6",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "55456/DYAMJQ4XF13338",
+   "in_date": "2026-05-06 15:42:26",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3325,
+   "product_name": "[XBAND6] Xiaomi Smart Band 9 (M2345B1)",
+   "default_code": "XBAND6",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "55456/DYAMJQ4XF13381",
+   "in_date": "2026-05-06 15:42:26",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3325,
+   "product_name": "[XBAND6] Xiaomi Smart Band 9 (M2345B1)",
+   "default_code": "XBAND6",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "55461/DYAMJQ4XB05613",
+   "in_date": "2026-05-06 15:42:27",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3325,
+   "product_name": "[XBAND6] Xiaomi Smart Band 9 (M2345B1)",
+   "default_code": "XBAND6",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "55462/DYAMJQ4XH03533",
+   "in_date": "2026-05-06 15:42:27",
+   "age_days": 133,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3161,
+   "product_name": "[ROU000-00100] Router Tp-Link AC1900 Archer C80",
+   "default_code": "ROU000-00100",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "22460K9003814",
+   "in_date": "2026-05-07 15:30:31",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2135,
+   "product_name": "[ROU000-00159] Router Tp-Link  AX1800 Dual Band Wi-Fi 6",
+   "default_code": "ROU000-00159",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "224A3P1000953",
+   "in_date": "2026-05-07 15:30:31",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2135,
+   "product_name": "[ROU000-00159] Router Tp-Link  AX1800 Dual Band Wi-Fi 6",
+   "default_code": "ROU000-00159",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "224A3P1002589",
+   "in_date": "2026-05-07 15:30:31",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2135,
+   "product_name": "[ROU000-00159] Router Tp-Link  AX1800 Dual Band Wi-Fi 6",
+   "default_code": "ROU000-00159",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "224A3P1000175",
+   "in_date": "2026-05-07 15:30:31",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2135,
+   "product_name": "[ROU000-00159] Router Tp-Link  AX1800 Dual Band Wi-Fi 6",
+   "default_code": "ROU000-00159",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "224A3P1000960",
+   "in_date": "2026-05-07 15:30:31",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3161,
+   "product_name": "[ROU000-00100] Router Tp-Link AC1900 Archer C80",
+   "default_code": "ROU000-00100",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "224B480002522",
+   "in_date": "2026-05-07 15:30:31",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3321,
+   "product_name": "TWOCOOLER",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "CO-4",
+   "in_date": "2026-05-07 18:02:13",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3321,
+   "product_name": "TWOCOOLER",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "CO-5",
+   "in_date": "2026-05-07 18:02:13",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3322,
+   "product_name": "BOLSO GYMGO",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "GYM-2",
+   "in_date": "2026-05-07 18:02:13",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3322,
+   "product_name": "BOLSO GYMGO",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "GYM-3",
+   "in_date": "2026-05-07 18:02:13",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3321,
+   "product_name": "TWOCOOLER",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "CO-3",
+   "in_date": "2026-05-07 18:02:13",
+   "age_days": 132,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2031,
+   "product_name": "[0001-6] Barra De Sonido Aiwa",
+   "default_code": "0001-6",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "",
+   "in_date": "2026-05-14 22:41:30",
+   "age_days": 125,
+   "bucket": "91-180 días",
+   "available": 4.0
+  },
+  {
+   "product_id": 3302,
+   "product_name": "KLIPXTREME MOUSE SURFER INALÁMBRICO DELGADO SILENCIOSO 2.4 GHZ 800/1200/1600 ppp HD 4 BOTONES",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "798302091764-6",
+   "in_date": "2026-05-14 22:44:44",
+   "age_days": 125,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3302,
+   "product_name": "KLIPXTREME MOUSE SURFER INALÁMBRICO DELGADO SILENCIOSO 2.4 GHZ 800/1200/1600 ppp HD 4 BOTONES",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "798302091764-11",
+   "in_date": "2026-05-14 22:44:44",
+   "age_days": 125,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3308,
+   "product_name": "Convertidor RJ11-Serial",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "RJ11",
+   "in_date": "2026-05-14 22:50:03",
+   "age_days": 125,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2554,
+   "product_name": "[ACL-CR2050-BLK-001] Caja Registradora CR2050 (PT)",
+   "default_code": "ACL-CR2050-BLK-001",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "2800034047",
+   "in_date": "2026-05-14 22:50:03",
+   "age_days": 125,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2787,
+   "product_name": "[CAB002-00013] Cable de Carga Apple MU2G3ZM/A – 240W / USB-C / 2m",
+   "default_code": "CAB002-00013",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "195949093418-3",
+   "in_date": "2026-05-15 22:15:33",
+   "age_days": 124,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3350,
+   "product_name": "Toshiba Portable Storage 2TB Canvio Flex (HDTX120XSCAA), Silver.",
+   "default_code": null,
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "Z5FQP0FKTVEH",
+   "in_date": "2026-05-19 21:57:54",
+   "age_days": 120,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3350,
+   "product_name": "Toshiba Portable Storage 2TB Canvio Flex (HDTX120XSCAA), Silver.",
+   "default_code": null,
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "Z5FQP0FJTVEH",
+   "in_date": "2026-05-19 21:57:54",
+   "age_days": 120,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3350,
+   "product_name": "Toshiba Portable Storage 2TB Canvio Flex (HDTX120XSCAA), Silver.",
+   "default_code": null,
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "Z5FQP0FRTVEH",
+   "in_date": "2026-05-19 21:57:54",
+   "age_days": 120,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3250,
+   "product_name": "[CEL007-00131] Honor Magic 8 Lite 8GB/256GB",
+   "default_code": "CEL007-00131",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "866152082657786",
+   "in_date": "2026-06-05 21:06:24",
+   "age_days": 103,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3216,
+   "product_name": "[CEL000-00970] Samsung Galaxy A56 5G 8GB/256GB",
+   "default_code": "CEL000-00970",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "352953411481140",
+   "in_date": "2026-06-11 15:26:45",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3303,
+   "product_name": "[TV016-00027] Aiwa QLED 43\"1080p  Smart TV Google TV.",
+   "default_code": "TV016-00027",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "43QB4IWZ2B53AC00571",
+   "in_date": "2026-06-11 15:29:50",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3303,
+   "product_name": "[TV016-00027] Aiwa QLED 43\"1080p  Smart TV Google TV.",
+   "default_code": "TV016-00027",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "43QB4IWZ2B53AC03168",
+   "in_date": "2026-06-11 15:29:50",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3303,
+   "product_name": "[TV016-00027] Aiwa QLED 43\"1080p  Smart TV Google TV.",
+   "default_code": "TV016-00027",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "43QB4IWZ2B53AC01089",
+   "in_date": "2026-06-11 15:29:50",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3303,
+   "product_name": "[TV016-00027] Aiwa QLED 43\"1080p  Smart TV Google TV.",
+   "default_code": "TV016-00027",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "43QB4IWZ2B53AC02075",
+   "in_date": "2026-06-11 15:29:50",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3303,
+   "product_name": "[TV016-00027] Aiwa QLED 43\"1080p  Smart TV Google TV.",
+   "default_code": "TV016-00027",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "43QB4IWZ2B53AC02155",
+   "in_date": "2026-06-11 15:34:55",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3216,
+   "product_name": "[CEL000-00970] Samsung Galaxy A56 5G 8GB/256GB",
+   "default_code": "CEL000-00970",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "352953411480852",
+   "in_date": "2026-06-11 15:44:59",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3216,
+   "product_name": "[CEL000-00970] Samsung Galaxy A56 5G 8GB/256GB",
+   "default_code": "CEL000-00970",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "352953411479706",
+   "in_date": "2026-06-11 15:44:59",
+   "age_days": 97,
+   "bucket": "91-180 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2578,
+   "product_name": "[CAF004-00002] Aiwa Easy Life AWHCMD1501, Cafetera de 12 tazas con filtro permanente programable.",
+   "default_code": "CAF004-00002",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "15CM10H11000000000751",
+   "in_date": "2026-06-22 20:00:59",
+   "age_days": 86,
+   "bucket": "61-90 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3303,
+   "product_name": "[TV016-00027] Aiwa QLED 43\"1080p  Smart TV Google TV.",
+   "default_code": "TV016-00027",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "43QB4IWZ2B53AC00445",
+   "in_date": "2026-07-04 16:23:46",
+   "age_days": 74,
+   "bucket": "61-90 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3193,
+   "product_name": "[TAB026-00003] Compaq Tablet 12\" 6GB/128GB",
+   "default_code": "TAB026-00003",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "LD004929072500000636",
+   "in_date": "2026-07-14 13:22:05",
+   "age_days": 64,
+   "bucket": "61-90 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3201,
+   "product_name": "[CEL003-00956] Xiaomi Redmi Note 15 Pro  5G 8GB/256GB",
+   "default_code": "CEL003-00956",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "865293083197264",
+   "in_date": "2026-07-20 15:47:38",
+   "age_days": 58,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3392,
+   "product_name": "Honor X8d – 6.77” 8 GB/256 GB",
+   "default_code": null,
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "863991085613655",
+   "in_date": "2026-07-20 15:47:38",
+   "age_days": 58,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3318,
+   "product_name": "CAUCHO 185/65R14 QUALID",
+   "default_code": null,
+   "location_id": 117,
+   "location_name": "ALMACÉN (2) RODEO/Stock",
+   "lot_name": "",
+   "in_date": "2026-07-30 19:01:32",
+   "age_days": 48,
+   "bucket": "31-60 días",
+   "available": 2.0
+  },
+  {
+   "product_id": 3412,
+   "product_name": "Honor 600 – 6.57” – 8 GB / 256 GB",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "864263088945240",
+   "in_date": "2026-08-05 15:47:15",
+   "age_days": 42,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3185,
+   "product_name": "[ACE002-00015] Cargador Apple 35W Dual USB-C Port Compact Power",
+   "default_code": "ACE002-00015",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "4549995463477",
+   "in_date": "2026-08-05 15:47:15",
+   "age_days": 42,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3182,
+   "product_name": "Xiaomi Redmi Watch 5 Lite (BHR8789GL)",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "57767/B6AFMN65713523",
+   "in_date": "2026-08-05 15:47:15",
+   "age_days": 42,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3355,
+   "product_name": "Infinix Hot 70 (X6895) 8GB/256GB",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "3503 84892137526",
+   "in_date": "2026-08-05 15:47:15",
+   "age_days": 42,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3185,
+   "product_name": "[ACE002-00015] Cargador Apple 35W Dual USB-C Port Compact Power",
+   "default_code": "ACE002-00015",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "4549995354157",
+   "in_date": "2026-08-05 15:47:15",
+   "age_days": 42,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3346,
+   "product_name": "[LDELL-15250] Laptop Dell LDC15250-5315BLK, Intel Core i5-1334U, 8GB, 512GB SSD, 15.6\" 2K Touchscreen, US, W11.",
+   "default_code": "LDELL-15250",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "297FTH4",
+   "in_date": "2026-08-11 19:54:25",
+   "age_days": 36,
+   "bucket": "31-60 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3425,
+   "product_name": "Regleta Ovalada Energizer – 6 tomas",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10100001308-2",
+   "in_date": "2026-08-18 20:08:39",
+   "age_days": 29,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3157,
+   "product_name": "[ACE009-00072] Samsung Power Adapter 45W (EP-T4511), Low Standby USB-C Cable",
+   "default_code": "ACE009-00072",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "R37Y3EZ5HH1SEB",
+   "in_date": "2026-08-18 20:08:39",
+   "age_days": 29,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3425,
+   "product_name": "Regleta Ovalada Energizer – 6 tomas",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10100001308-3",
+   "in_date": "2026-08-18 20:08:39",
+   "age_days": 29,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515882",
+   "in_date": "2026-08-25 14:45:35",
+   "age_days": 22,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515886",
+   "in_date": "2026-08-25 14:45:35",
+   "age_days": 22,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515884",
+   "in_date": "2026-08-25 14:45:35",
+   "age_days": 22,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515885",
+   "in_date": "2026-08-25 14:45:35",
+   "age_days": 22,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515888",
+   "in_date": "2026-08-25 14:45:35",
+   "age_days": 22,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2326,
+   "product_name": "[A.S000-00012] Starlink Mini Dual-Band Wi-Fi System",
+   "default_code": "A.S000-00012",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KIT4M055474464Q2",
+   "in_date": "2026-08-26 16:21:41",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2326,
+   "product_name": "[A.S000-00012] Starlink Mini Dual-Band Wi-Fi System",
+   "default_code": "A.S000-00012",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KIT4M05547146PDQ",
+   "in_date": "2026-08-26 16:21:41",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2326,
+   "product_name": "[A.S000-00012] Starlink Mini Dual-Band Wi-Fi System",
+   "default_code": "A.S000-00012",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KIT4M05547132SVT",
+   "in_date": "2026-08-26 16:21:41",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2326,
+   "product_name": "[A.S000-00012] Starlink Mini Dual-Band Wi-Fi System",
+   "default_code": "A.S000-00012",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "KIT4M055475617RQ",
+   "in_date": "2026-08-26 16:21:41",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3352,
+   "product_name": "Xiaomi Redmi Note 15 Pro+ 5G 8GB/256GB",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "864509088007443",
+   "in_date": "2026-08-26 16:29:51",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3233,
+   "product_name": "[CEL000-01067] Samsung Galaxy S26 Ultra 12GB/512GB",
+   "default_code": "CEL000-01067",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "356028670814962",
+   "in_date": "2026-08-26 16:29:51",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3215,
+   "product_name": "[CEL01B-00252] Infinix Note 60 Pro 5G 8GB/256GB",
+   "default_code": "CEL01B-00252",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "351982597570971",
+   "in_date": "2026-08-26 16:29:51",
+   "age_days": 21,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3256,
+   "product_name": "[CEL000-01077] Samsung Galaxy A37 8GB/256GB",
+   "default_code": "CEL000-01077",
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "356599708334397",
+   "in_date": "2026-08-27 15:14:33",
+   "age_days": 20,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2229,
+   "product_name": "[S.W00H-00004] Kieslect Calling Watch Ks Pro",
+   "default_code": "S.W00H-00004",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "K0851084104982",
+   "in_date": "2026-09-02 15:41:29",
+   "age_days": 14,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2229,
+   "product_name": "[S.W00H-00004] Kieslect Calling Watch Ks Pro",
+   "default_code": "S.W00H-00004",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "K0851084104967",
+   "in_date": "2026-09-02 15:41:29",
+   "age_days": 14,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3287,
+   "product_name": "[CEL01B-00242] Infinix Smart 20, 4GB/128GB",
+   "default_code": "CEL01B-00242",
+   "location_id": 135,
+   "location_name": "ALMGR/Stock",
+   "lot_name": "359869143237795",
+   "in_date": "2026-09-02 17:58:57",
+   "age_days": 14,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515851",
+   "in_date": "2026-09-04 21:26:14",
+   "age_days": 12,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515850",
+   "in_date": "2026-09-04 21:26:14",
+   "age_days": 12,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515864",
+   "in_date": "2026-09-04 21:26:14",
+   "age_days": 12,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515848",
+   "in_date": "2026-09-04 21:26:14",
+   "age_days": 12,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515847",
+   "in_date": "2026-09-04 21:26:14",
+   "age_days": 12,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3160,
+   "product_name": "Marsriva  Mini Ups  Kp6 Max 18W 20000 mAh",
+   "default_code": null,
+   "location_id": 58,
+   "location_name": "ALMACÉN (1) RODEO/Stock",
+   "lot_name": "10260515853",
+   "in_date": "2026-09-04 21:26:14",
+   "age_days": 12,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3287,
+   "product_name": "[CEL01B-00242] Infinix Smart 20, 4GB/128GB",
+   "default_code": "CEL01B-00242",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "354696563168449",
+   "in_date": "2026-09-09 19:51:09",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3254,
+   "product_name": "[CEL000-01087] Samsung Galaxy A57 8GB/256GB",
+   "default_code": "CEL000-01087",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "351791523241809",
+   "in_date": "2026-09-09 19:51:09",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2799,
+   "product_name": "[CEL000-01018] Samsung Galaxy A17 5G 8GB/256GB",
+   "default_code": "CEL000-01018",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "358680811958310",
+   "in_date": "2026-09-09 19:51:09",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3287,
+   "product_name": "[CEL01B-00242] Infinix Smart 20, 4GB/128GB",
+   "default_code": "CEL01B-00242",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "354696563116729",
+   "in_date": "2026-09-09 19:51:09",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3210,
+   "product_name": "[CEL003-00908] Xiaomi Redmi 15C 8GB/256GB",
+   "default_code": "CEL003-00908",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "869580084333583",
+   "in_date": "2026-09-09 19:51:09",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3210,
+   "product_name": "[CEL003-00908] Xiaomi Redmi 15C 8GB/256GB",
+   "default_code": "CEL003-00908",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "867754089413102",
+   "in_date": "2026-09-09 19:51:09",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3346,
+   "product_name": "[LDELL-15250] Laptop Dell LDC15250-5315BLK, Intel Core i5-1334U, 8GB, 512GB SSD, 15.6\" 2K Touchscreen, US, W11.",
+   "default_code": "LDELL-15250",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "169DTH4",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3380,
+   "product_name": "Laptop HP 15-fd0230wm – Intel Core i3-N305 / 8GB / 256GB SSD / 15.6” / US / W11",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "1H85454GCL",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2060,
+   "product_name": "[TV016-00002] Aiwa 32\" HD Smart TV, Google TV.",
+   "default_code": "TV016-00002",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "32SMB419Z2B536K000269",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3437,
+   "product_name": "Laptop Lenovo Ideapad Slim 3 82XM00LMUS, AMD Ryzen 7 5825U, 16GB, 512GB SSD, 15.6\" Touchscreen, US, W11.",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "PF615CFH",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3513,
+   "product_name": "Laptop Lenovo V15 G4 IRU 83A100PBUS Intel Core i3-1315U, 16GB, 512GB SSD, 15.6\", US, W11",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "PF5Q9ZF1",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3380,
+   "product_name": "Laptop HP 15-fd0230wm – Intel Core i3-N305 / 8GB / 256GB SSD / 15.6” / US / W11",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "1H8549286V",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 2060,
+   "product_name": "[TV016-00002] Aiwa 32\" HD Smart TV, Google TV.",
+   "default_code": "TV016-00002",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "32SMB419Z2B539L018085",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3508,
+   "product_name": "Laptop Asus VivoBook F1605VA-WS74 – Intel Core i7-1355U / 16GB / 512GB SSD / 16” / US / W11",
+   "default_code": null,
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "T9N0SH00U94837F",
+   "in_date": "2026-09-09 20:18:14",
+   "age_days": 7,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3261,
+   "product_name": "[LAP019-00007] Laptop Compaq QL15R3HE16256, AMD Ryzen 3 3200U, 16GB, 256GB SSD, 15.6\", W11.",
+   "default_code": "LAP019-00007",
+   "location_id": 32,
+   "location_name": "ALMACÉN GERARDO JOSE RAMIREZ FERNANDEZ F.P./Stock",
+   "lot_name": "LD004936072500003527",
+   "in_date": "2026-09-10 15:59:51",
+   "age_days": 6,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3284,
+   "product_name": "[LAP019-00013] Laptop Compaq QL14N45GW12128, Intel Celeron N4500, 12GB, 128GB EMMC, 14\", W11.",
+   "default_code": "LAP019-00013",
+   "location_id": 42,
+   "location_name": "ALMACEN JUHENDIS ESTHER VALLADARES LOPEZ F.P./Stock",
+   "lot_name": "LD004959072500003337",
+   "in_date": "2026-09-10 18:39:13",
+   "age_days": 6,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  },
+  {
+   "product_id": 3416,
+   "product_name": "Motocicleta Bel Ranger 250cc",
+   "default_code": null,
+   "location_id": 269,
+   "location_name": "CMOT/Stock",
+   "lot_name": "LAEEARCM1THB40034",
+   "in_date": "2026-09-15 14:15:10",
+   "age_days": 1,
+   "bucket": "Hasta 30 días",
+   "available": 1.0
+  }
+ ],
+ "totals": {
+  "total_units": 900.0,
+  "total_items": 198,
+  "max_age": 800,
+  "buckets": {
+   "Hasta 30 días": 42.0,
+   "31-60 días": 10.0,
+   "61-90 días": 3.0,
+   "91-180 días": 58.0,
+   "Más de 180 días": 787.0,
+   "Sin fecha": 0
+  }
+ },
+ "synced_at": "2026-09-16 11:58:48"
+};
+let stockDesc = true;
+let stockData = EMBEBIDO || {rows: [], locations: [], bucket_labels: [], totals: {}};
+
+function prepara() {
+  const g = stockData.totals || {};
+  stockData.bucket_labels = stockData.bucket_labels || [];
+  stockData.locations = stockData.locations || [];
+  stockData.rows = stockData.rows || [];
+
+  document.getElementById("stock-sync").innerHTML = stockData.synced_at
+    ? "Actualizado: <b>" + stockData.synced_at + "</b> &middot; " + "Unidades disponibles: <b>" + (g.total_units || 0) + "</b>"
+    : "Sin datos de stock.";
+
+  const selA = document.getElementById("sel-almacen");
+  selA.innerHTML = '<option value="TODOS">Todos los almacenes</option>' +
+    stockData.locations.map(l => '<option value="' + l.location_id + '">' + l.location_name + "</option>").join("");
+  const selB = document.getElementById("sel-antiguedad");
+  selB.innerHTML = '<option value="">Todas</option>' +
+    stockData.bucket_labels.map(b => "<option>" + b + "</option>").join("");
+
+  document.getElementById("stock-tarjetas").innerHTML =
+    '<div class="mini-grid">' +
+    '<div class="mini"><b>' + (g.total_units || 0) + '</b><span>Unidades disponibles</span></div>' +
+    '<div class="mini"><b>' + (g.total_items || 0) + '</b><span>Productos/lotes en stock</span></div>' +
+    '<div class="mini"><b>' + (g.max_age || 0) + '</b><span>D&iacute;as m&aacute;x. en almac&eacute;n</span></div>' +
+    '<div class="mini"><b>' + stockData.locations.length + '</b><span>Almacenes</span></div>' +
+    "</div>" +
+    '<div class="mini-grid" id="stock-buckets"></div>' +
+    '<div class="mini-grid" id="stock-loc"></div>';
+
+  const bmax = Math.max(1, ...stockData.bucket_labels.map(b => (g.buckets || {})[b] || 0));
+  document.getElementById("stock-buckets").innerHTML = stockData.bucket_labels.map(b => {
+    const v = (g.buckets || {})[b] || 0;
+    return '<div class="mini" style="text-align:left">' +
+      '<div class="bar-fondo"><i style="width:' + Math.round(v / bmax * 100) + '%">&nbsp;</i></div>' +
+      '<span>' + b + ': <b>' + v + '</b></span></div>';
+  }).join("");
+
+  document.getElementById("stock-loc").innerHTML = stockData.locations.map(l =>
+    '<div class="mini loc" data-loc="' + l.location_id + '">' +
+    '<span>' + String(l.location_name).split("/")[0] + '</span>' +
+    '<b>' + l.total_units + '</b><span>unid &middot; m&aacute;x ' + l.max_age + ' d&iacute;as</span></div>').join("") ||
+    '<div class="mini"><span>Sin almacenes</span></div>';
+
+  document.querySelectorAll("#stock-loc .loc").forEach(c =>
+    c.onclick = () => { selA.value = c.dataset.loc; pintarStock(); });
+  selA.onchange = pintarStock;
+  selB.onchange = pintarStock;
+  document.getElementById("btn-stock-orden").onclick = () => {
+    stockDesc = !stockDesc;
+    document.getElementById("btn-stock-orden").textContent =
+      stockDesc ? "Ordenar: m&aacute;s tiempo primero" : "Ordenar: m&aacute;s reciente primero";
+    pintarStock();
+  };
+  pintarStock();
+}
+
+function pintarStock() {
+  const a = String(document.getElementById("sel-almacen").value);
+  const b = document.getElementById("sel-antiguedad").value;
+  const orden = stockDesc ? -1 : 1;
+  const lista = stockData.rows
+    .filter(r => (a === "TODOS" || String(r.location_id) === a) && (!b || r.bucket === b))
+    .sort((x, y) => {
+      const xa = x.age_days === null || x.age_days === undefined ? -1 : x.age_days;
+      const ya = y.age_days === null || y.age_days === undefined ? -1 : y.age_days;
+      return (xa - ya) * orden;
+    });
+  const pill = d => {
+    if (d === null || d === undefined) return '<span class="pill">Sin fecha</span>';
+    const clase = d <= 30 ? "ok" : (d <= 90 ? "med" : "old");
+    return '<span class="pill ' + clase + '">' + d + " d&iacute;as</span>";
+  };
+  const totalUnid = lista.reduce((s, r) => s + Number(r.available || 0), 0);
+  document.getElementById("stock-resumen").innerHTML =
+    lista.length + " productos/lotes &middot; " + totalUnid.toFixed(2) + " unidades disponibles";
+  document.getElementById("tbody-stock").innerHTML = lista.map(r =>
+    "<tr>" +
+    "<td>" + r.product_name + "</td>" +
+    '<td class="num">' + (r.default_code || "") + "</td>" +
+    '<td class="num">' + (r.lot_name || "&mdash;") + "</td>" +
+    "<td>" + r.location_name + "</td>" +
+    '<td class="num">' + (r.in_date ? String(r.in_date).slice(0, 10) : "&mdash;") + "</td>" +
+    '<td class="num">' + pill(r.age_days) + "</td>" +
+    '<td class="num"><b>' + r.available + "</b></td>" +
+    "</tr>").join("") ||
+    '<tr><td colspan="7" class="aviso">Sin stock disponible para el filtro seleccionado.</td></tr>';
+}
+
+document.addEventListener("DOMContentLoaded", prepara);
+</script>
+</body>
+</html>
