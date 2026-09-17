@@ -3508,22 +3508,125 @@ function pintarAntiguos() {
       "</div>").join("");
 }
 
+function _crc32(u8) {
+  let c, crc = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) {
+    c = (crc ^ u8[i]) & 0xFF;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function _u16(n) { return [n & 0xFF, (n >>> 8) & 0xFF]; }
+function _u32(n) { return [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF]; }
+function _xlsxZip(entries) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const e of entries) {
+    const name = enc.encode(e.name);
+    const crc = _crc32(e.d);
+    const lh = [0x50, 0x4B, 0x03, 0x04,   // local file header
+      0x14, 0x00,                         // version needed
+      0x00, 0x00,                         // general purpose flag
+      0x00, 0x00,                         // compression method (store)
+      0x00, 0x00,                         // mod time
+      0x00, 0x00,                         // mod date
+      ..._u32(crc),
+      ..._u32(e.d.length), ..._u32(e.d.length),
+      ..._u16(name.length), 0, 0];
+    parts.push(new Uint8Array(lh), name, e.d);
+    const ch = [0x50, 0x4B, 0x01, 0x02,   // central directory header
+      0x14, 0x00, 0x14, 0x00,             // version made by, version needed
+      0x00, 0x00,                         // flag
+      0x00, 0x00,                         // method
+      0x00, 0x00, 0x00, 0x00,             // time + date
+      ..._u32(crc),
+      ..._u32(e.d.length), ..._u32(e.d.length),
+      ..._u16(name.length), 0, 0, 0, 0,   // name, extra, comment
+      0, 0,                               // disk start
+      0, 0,                               // internal attrs
+      0, 0, 0, 0,                         // external attrs
+      ..._u32(offset)];
+    central.push(new Uint8Array(ch), name);
+    offset += 30 + name.length + e.d.length;
+  }
+  let csize = 0;
+  for (const c of central) csize += c.length;
+  const cstart = offset;
+  const eocd = new Uint8Array([0x50, 0x4B, 0x05, 0x06,
+    0, 0, 0, 0,                           // disk number, disk with CD
+    ..._u16(entries.length), ..._u16(entries.length),
+    ..._u32(csize), ..._u32(cstart), 0, 0]);
+  const parts2 = [...parts, ...central, eocd];
+  const total = parts2.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const p of parts2) { out.set(p, off); off += p.length; }
+  return out;
+}
+function _xlsxEsc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function _xlsxCol(n) {
+  let s = "";
+  n++;
+  while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+  return s;
+}
 function exportarExcel() {
   const lista = filtroActual();
-  const enc = ["Producto", "C\u00f3digo", "Lote/Serie", "Almac\u00e9n", "F. Recepci\u00f3n", "D\u00edas", "Disponible", "Estrategia"];
-  const esc = v => {
-    const s = String(v === null || v === undefined ? "" : v);
-    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  const filas = lista.map(r => [r.product_name, r.default_code || "", r.lot_name || "",
-    r.location_name, r.in_date ? String(r.in_date).slice(0, 10) : "",
+  const enc = ["Producto", "C\u00f3digo", "Lote/Serie", "Almac\u00e9n",
+    "F. Recepci\u00f3n", "D\u00edas", "Disponible", "Estrategia"];
+  const filas = lista.map(r => [r.product_name, r.default_code || "",
+    r.lot_name || "", r.location_name,
+    r.in_date ? String(r.in_date).slice(0, 10) : "",
     r.age_days === null || r.age_days === undefined ? "" : r.age_days,
-    r.available, r.strategy || ""].map(esc).join(";"));
-  const csv = "\uFEFF" + [enc.join(";"), ...filas].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    r.available, r.strategy || ""]);
+  const nc = enc.length;
+  let sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+  const fd = (row, cells) => {
+    return "<row r=\"" + row + "\">" + cells.map((c, i) => {
+      const ref = _xlsxCol(i) + row;
+      if (typeof c === "number" && isFinite(c))
+        return "<c r=\"" + ref + "\"><v>" + c + "</v></c>";
+      return "<c r=\"" + ref + "\" t=\"inlineStr\"><is><t>" +
+        _xlsxEsc(c) + "</t></is></c>";
+    }).join("") + "</row>";
+  };
+  sheet += fd(1, enc);
+  filas.forEach((f, idx) => { sheet += fd(idx + 2, f); });
+  sheet += "</sheetData></worksheet>";
+  const encd = e => new TextEncoder().encode(e);
+  const xml = s => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + s;
+  const zip = _xlsxZip([
+    { name: "[Content_Types].xml",
+      d: encd(xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        "</Types>")) },
+    { name: "_rels/.rels",
+      d: encd(xml('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+        "</Relationships>")) },
+    { name: "xl/workbook.xml",
+      d: encd(xml('<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets><sheet name="Stock" sheetId="1" r:id="rId1"/></sheets></workbook>')) },
+    { name: "xl/_rels/workbook.xml.rels",
+      d: encd(xml('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        "</Relationships>")) },
+    { name: "xl/worksheets/sheet1.xml", d: encd(sheet) },
+  ]);
+  const blob = new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "stock_latinbien_" + new Date().toISOString().slice(0, 10) + ".csv";
+  link.download = "stock_latinbien_" + new Date().toISOString().slice(0, 10) + ".xlsx";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
